@@ -50,8 +50,15 @@ export async function PATCH(req: Request) {
 // 删除任务
 export async function DELETE(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
+    let id: string | null = null;
+    try {
+      const body = await req.json();
+      id = body?.id ?? null;
+    } catch {
+      // 兼容旧用法：从 query 获取
+      const { searchParams } = new URL(req.url);
+      id = searchParams.get("id");
+    }
 
     if (!id) {
       return new NextResponse("Task ID is required", { status: 400 });
@@ -61,9 +68,9 @@ export async function DELETE(req: Request) {
       where: { id },
     });
 
-    return new NextResponse("OK");
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[TASKS_DELETE_ERROR]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    return NextResponse.json({ error: "删除失败" }, { status: 500 });
   }
 }

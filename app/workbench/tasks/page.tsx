@@ -16,7 +16,8 @@ import {
   Copy,
   LayoutDashboard,
   Plus,
-  Loader2
+  Loader2,
+  Trash2
 } from "lucide-react";
 import {
   Dialog,
@@ -65,6 +66,8 @@ export default function TasksPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -81,6 +84,43 @@ export default function TasksPage() {
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`确认删除选中的 ${selectedIds.length} 篇内容？`)) return;
+    setDeleting(true);
+    try {
+      await Promise.all(
+        selectedIds.map((id) =>
+          fetch("/api/tasks", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          })
+        )
+      );
+      setSelectedIds([]);
+      fetchTasks();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteSingle = async (id: string) => {
+    if (!confirm("确认删除这篇内容？")) return;
+    await fetch("/api/tasks", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setIsDialogOpen(false);
+    fetchTasks();
+  };
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+  };
 
   const handleUpdateTask = async (id: string, updates: Partial<Task>) => {
     setUpdating(true);
@@ -183,6 +223,21 @@ export default function TasksPage() {
           </Select>
         </div>
       </div>
+      {selectedIds.length > 0 && (
+        <div className="flex items-center gap-3 px-2 py-2 bg-red-50 rounded-xl border border-red-100">
+          <span className="text-sm text-red-600 font-medium">已选 {selectedIds.length} 篇</span>
+          <Button
+            size="sm"
+            onClick={handleDeleteSelected}
+            disabled={deleting}
+            className="bg-red-500 hover:bg-red-600 text-white border-none h-8 text-xs"
+          >
+            {deleting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
+            删除选中
+          </Button>
+          <button onClick={() => setSelectedIds([])} className="text-xs text-red-400 hover:text-red-600">取消</button>
+        </div>
+      )}
 
       {/* 看板区域 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -209,6 +264,15 @@ export default function TasksPage() {
                     }}
                   >
                     <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded accent-blue-600"
+                        checked={selectedIds.includes(task.id)}
+                        onClick={(e) => toggleSelect(task.id, e)}
+                        onChange={() => {}}
+                      />
+                    </div>
                       <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-[#0071e3] uppercase">
@@ -332,6 +396,13 @@ export default function TasksPage() {
           </div>
 
           <DialogFooter className="pt-4 gap-2">
+            <Button 
+              variant="outline" 
+              className="rounded-xl px-6 text-red-500 border-red-200 hover:bg-red-50" 
+              onClick={() => selectedTask && handleDeleteSingle(selectedTask.id)} 
+            >
+              <Trash2 className="h-4 w-4 mr-1" /> 删除
+            </Button>
             <Button variant="outline" className="rounded-xl px-6" onClick={() => setIsDialogOpen(false)}>
               关闭
             </Button>
