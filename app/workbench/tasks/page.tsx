@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { ComponentType, CSSProperties } from "react";
+import dynamic from "next/dynamic";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +37,17 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+
+const MDPreview = dynamic(
+  () =>
+    import("@uiw/react-md-editor").then(
+      (mod) =>
+        (mod.default as unknown as {
+          Markdown: ComponentType<{ source: string; style?: CSSProperties }>;
+        }).Markdown
+    ),
+  { ssr: false }
+);
 
 interface Task {
   id: string;
@@ -390,8 +403,15 @@ export default function TasksPage() {
                 <Copy className="h-3 w-3 mr-1" /> 复制全文
               </Button>
             </div>
-            <div className="bg-slate-50 dark:bg-zinc-900 p-5 rounded-xl text-sm leading-relaxed whitespace-pre-wrap max-h-[350px] overflow-y-auto border border-slate-100 dark:border-zinc-800 text-slate-700 dark:text-zinc-300">
-              {selectedTask?.content || <span className="text-zinc-400 italic">暂无内容</span>}
+            <div
+              className="bg-slate-50 dark:bg-zinc-900 p-5 rounded-xl text-sm leading-relaxed max-h-[350px] overflow-y-auto border border-slate-100 dark:border-zinc-800"
+              data-color-mode="light"
+            >
+              {selectedTask?.content ? (
+                <MDPreview source={selectedTask.content} style={{ background: "transparent", fontSize: "13px" }} />
+              ) : (
+                <span className="text-zinc-400 italic">暂无内容</span>
+              )}
             </div>
           </div>
 

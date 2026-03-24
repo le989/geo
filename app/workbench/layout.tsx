@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-import { Factory, Search, Kanban, Database, Users, LogOut, FileText } from "lucide-react";
+import { Factory, Search, Kanban, Database, Users, LogOut, FileText, BookOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const routes = [
@@ -97,6 +97,23 @@ export default function WorkbenchLayout({ children }: { children: React.ReactNod
               <div className="flex items-center flex-1">
                 <FileText className={cn("h-5 w-5 mr-3", pathname === "/workbench/admin/logs" ? "text-white" : "text-zinc-500")} />
                 操作日志
+              </div>
+            </Link>
+          )}
+
+          {role === "admin" && (
+            <Link
+              href="/workbench/admin/topics"
+              className={cn(
+                "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-white hover:bg-white/10 rounded-lg transition",
+                pathname === "/workbench/admin/topics"
+                  ? "text-white bg-[#0071e3] hover:bg-[#0071e3]/90"
+                  : "text-zinc-500 dark:text-zinc-400"
+              )}
+            >
+              <div className="flex items-center flex-1">
+                <BookOpen className={cn("h-5 w-5 mr-3", pathname === "/workbench/admin/topics" ? "text-white" : "text-zinc-500")} />
+                选题库管理
               </div>
             </Link>
           )}

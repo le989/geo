@@ -143,16 +143,27 @@ ${markdownTableRule}
     });
 
     const content = response.choices[0].message.content;
+    // 自动提取标题：取内容第一行非空文字，最多30字
+const extractTitle = (text: string): string => {
+  const lines = (text || "").split("\n").map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    const clean = line.replace(/^#{1,6}\s*/, "").replace(/[*_|>]/g, "").trim();
+    if (clean.length >= 5) return clean.substring(0, 40);
+  }
+  return lines[0]?.substring(0, 40) || "未命名内容";
+};
+const title = extractTitle(content || "");
     console.log(`[TASK ${taskId}] Generation completed.`);
 
     // 任务成功完成，状态改为 PENDING_REVIEW
     await db.contentTask.update({
-      where: { id: taskId },
-      data: {
-        content: content,
-        status: "PENDING_REVIEW",
-      },
-    });
+  where: { id: taskId },
+  data: {
+    content: content,
+    title: title,
+    status: "PENDING_REVIEW",
+  },
+});
   } catch (error: unknown) {
     console.error(`[TASK ${taskId}] BACKGROUND_GENERATE_ERROR:`, error);
     const errorMessage = error instanceof Error ? error.message : "未知错误";
