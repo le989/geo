@@ -32,6 +32,7 @@ async function fetchWithRetry(url: string, retries = 3): Promise<string> {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
+  throw new Error('Failed to fetch after retries');
 }
 
 export async function POST(req: Request) {
