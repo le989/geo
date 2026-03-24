@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { logActivity } from "@/lib/log";
 
 function isAdmin() {
   const role = cookies().get("gf_role")?.value;
@@ -38,6 +39,7 @@ export async function POST(req: Request) {
     const user = await db.user.create({
       data: { name: name || null, email, password: hash, role: role || "viewer" },
     });
+    await logActivity(cookies().get("gf_user")?.value || "admin", "USER_CREATE", `创建用户: ${email}`);
     return NextResponse.json({ success: true, user });
   } catch (e) {
     console.error("[USERS_POST]", e);
@@ -53,6 +55,7 @@ export async function PATCH(req: Request) {
   try {
     const { id, role } = await req.json();
     await db.user.update({ where: { id }, data: { role } });
+    await logActivity(cookies().get("gf_user")?.value || "admin", "USER_ROLE_CHANGE", `修改 ${id} 角色为 ${role}`);
     return NextResponse.json({ success: true });
   } catch (e) {
     console.error("[USERS_PATCH]", e);
@@ -68,6 +71,7 @@ export async function DELETE(req: Request) {
   try {
     const { id } = await req.json();
     await db.user.delete({ where: { id } });
+    await logActivity(cookies().get("gf_user")?.value || "admin", "USER_DELETE", `删除用户: ${id}`);
     return NextResponse.json({ success: true });
   } catch (e) {
     console.error("[USERS_DELETE]", e);

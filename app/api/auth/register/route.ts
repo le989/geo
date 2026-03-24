@@ -1,3 +1,4 @@
+import { logActivity } from "@/lib/log";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
@@ -16,6 +17,7 @@ export async function POST(req: Request) {
     await db.user.create({
       data: { name, email, password: hash, role: "viewer" },
     });
+    await logActivity(email, "REGISTER", `姓名: ${name}`);
     return NextResponse.json({ success: true });
   } catch (e) {
     console.error("[AUTH_REGISTER]", e);

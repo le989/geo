@@ -9,12 +9,6 @@ type User = {
   createdAt: string;
 };
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: "管理员",
-  editor: "编辑",
-  viewer: "访客",
-};
-
 const ROLE_COLORS: Record<string, string> = {
   admin: "bg-red-100 text-red-700",
   editor: "bg-blue-100 text-blue-700",

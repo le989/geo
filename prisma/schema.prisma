@@ -77,3 +77,14 @@ model MonitorResult {
   factErrorNote  String?         @db.Text
   runAt          DateTime        @default(now())
 }
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userEmail String
+  action    String
+  detail    String?  @db.Text
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userEmail])
+  @@index([createdAt])
+}
