@@ -104,6 +104,9 @@ export default function LoginPage() {
             </form>
           </CardContent>
         </Card>
+        <p className="text-center text-sm text-zinc-500">
+          没有账号？<a href="/workbench/register" className="text-[#0071e3] hover:underline font-medium">申请注册</a>
+        </p>
         <p className="text-center text-xs text-zinc-400">
           &copy; 2024 GEO工厂 &bull; 南京凯基特电气有限公司
         </p>
