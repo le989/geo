@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { type ThemeProviderProps } from "next-themes";
 import { Search, TrendingUp, BarChart3, Clock, Loader2, Filter, AlertCircle, Globe } from "lucide-react";
 import { 
