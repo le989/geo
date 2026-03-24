@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Lock, ArrowRight, ShieldCheck } from "lucide-react";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -16,17 +17,17 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password) return;
+    if (!email || !password) return;
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/auth", {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       });
       if (response.ok) {
-        router.push("/workbench/brand");
+        router.push("/workbench/factory");
         router.refresh();
       } else {
         const data = await response.json();
@@ -47,7 +48,7 @@ export default function LoginPage() {
             <ShieldCheck className="h-8 w-8" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">GEO工厂工作台</h1>
-          <p className="text-slate-500 dark:text-zinc-400">受保护的内容，请输入访问密码</p>
+          <p className="text-slate-500 dark:text-zinc-400">使用邮箱与密码登录</p>
         </div>
         <Card className="apple-card border-none shadow-xl">
           <CardHeader>
@@ -55,12 +56,24 @@ export default function LoginPage() {
               <Lock className="h-4 w-4 text-zinc-400" />
               身份验证
             </CardTitle>
-            <CardDescription>请输入管理员提供的访问密钥</CardDescription>
+            <CardDescription>请输入邮箱与密码</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password">访问密码</Label>
+                <Label htmlFor="email">邮箱</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@geo-factory.com"
+                  className="rounded-[12px] h-12 focus-visible:ring-[#0071e3]"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">密码</Label>
                 <Input
                   id="password"
                   type="password"
@@ -68,7 +81,6 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="rounded-[12px] h-12 focus-visible:ring-[#0071e3]"
-                  autoFocus
                 />
               </div>
               {error && (
@@ -78,7 +90,7 @@ export default function LoginPage() {
               )}
               <Button
                 type="submit"
-                disabled={loading || !password}
+                disabled={loading || !email || !password}
                 className="w-full bg-[#0071e3] hover:bg-[#0071e3]/90 border-none text-white h-12 rounded-[12px] text-base font-medium shadow-lg shadow-blue-500/20"
               >
                 {loading ? (
