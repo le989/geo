@@ -142,7 +142,7 @@ export default function MonitorPage() {
         </CardHeader>
         <CardContent>
           <div className="h-[350px] w-full mt-4">
-            {stats?.chartData?.length > 0 ? (
+            {(stats?.chartData?.length ?? 0) > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={stats.chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
