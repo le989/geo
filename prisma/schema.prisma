@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model BrandProfile {
+  id           String   @id @default(cuid())
+  name         String
+  intro        String?  @db.Text
+  productLines String?  @db.Text
+  scenes       String?  @db.Text
+  forbidden    String?  @db.Text
+  sources      String?  @db.Text
+  updatedAt    DateTime @updatedAt
+}
+
+model TopicTemplate {
+  id       String  @id @default(cuid())
+  topic    String
+  scene    String
+  channel  String
+  priority String  @default("中")
+  active   Boolean @default(true)
+}
+
+model ContentTask {
+  id          String    @id @default(cuid())
+  title       String
+  channel     String
+  scene       String
+  owner       String    @default("待分配")
+  status      String    @default("PENDING_GENERATE")
+  content     String?   @db.Text
+  publishedAt DateTime?
+  retestAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model MonitorQuestion {
+  id       String          @id @default(cuid())
+  question String
+  scene    String
+  active   Boolean         @default(true)
+  results  MonitorResult[]
+}
+
+model MonitorResult {
+  id             String          @id @default(cuid())
+  questionId     String
+  question       MonitorQuestion @relation(fields: [questionId], references: [id])
+  platform       String
+  rawAnswer      String?         @db.Text
+  mentioned      Boolean         @default(false)
+  position       String?
+  productCorrect Boolean?
+  hasFactError   Boolean         @default(false)
+  factErrorNote  String?         @db.Text
+  runAt          DateTime        @default(now())
+}
