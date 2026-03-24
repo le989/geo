@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 登录页放行
-  if (pathname === '/workbench/login') {
+  if (pathname === '/workbench/login' || pathname === '/workbench/register') {
     return NextResponse.next();
   }
 
