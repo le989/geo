@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { type ThemeProviderProps } from "next-themes";
 import { Search, TrendingUp, BarChart3, Clock, Loader2, Filter, AlertCircle, Globe } from "lucide-react";
 import { 
   LineChart, 
@@ -144,7 +144,7 @@ export default function MonitorPage() {
           <div className="h-[350px] w-full mt-4">
             {(stats?.chartData?.length ?? 0) > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={stats.chartData}>
+                <LineChart data={stats?.chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis 
                     dataKey="date" 
@@ -168,7 +168,7 @@ export default function MonitorPage() {
                     }}
                   />
                   <Legend verticalAlign="top" align="right" iconType="circle" height={36} />
-                  {stats.platforms.map((platform: string) => (
+                  {stats?.platforms?.map((platform: string) => (
                     <Line
                       key={platform}
                       type="monotone"
