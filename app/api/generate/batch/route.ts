@@ -1,124 +1,267 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import contentText from "@/lib/content-text";
+import * as generationPrompts from "@/lib/generation-prompts";
+import contentReview from "@/lib/content-review";
+import articleStore from "@/lib/article-store";
+import { logTaskEvent } from "@/lib/log";
+import { appendVariationInstruction, type BatchVariationSpec } from "@/lib/batch-variation";
+import { findSimilarityWarnings, type SimilarityWarning } from "@/lib/content-similarity";
 
 const openai = new OpenAI({
   baseURL: "https://api.deepseek.com",
   apiKey: process.env.DEEPSEEK_API_KEY,
 });
 
+const { pickBestArticleTitle } = contentText as {
+  pickBestArticleTitle: (content: string, modelTitle?: string) => string;
+};
+
+const { buildBrandContext, buildSystemPrompt, buildTitlePrompts, copyTextLabels } =
+  generationPrompts as typeof import("@/lib/generation-prompts");
+
+const {
+  parseReviewResponse,
+  buildPublishChecks,
+  createReviewFallback,
+  buildReviewPrompts,
+  buildBrandCheck,
+} = contentReview as {
+  parseReviewResponse: (rawText: string, content?: string) => Record<string, unknown>;
+  buildPublishChecks: (options: {
+    title: string;
+    content: string;
+    brandCheck: Record<string, any>;
+  }) => Record<string, unknown>;
+  createReviewFallback: (
+    brandCheck: Record<string, any>,
+    publishCheck: Record<string, unknown>,
+  ) => Record<string, unknown>;
+  buildReviewPrompts: (options: {
+    title: string;
+    content: string;
+    channel: string;
+    scene: string;
+    brandCheck: Record<string, any>;
+    publishCheck: Record<string, unknown>;
+  }) => { systemPrompt: string; userPrompt: string };
+  buildBrandCheck: (
+    content: string,
+    brandProfile: Record<string, unknown> | null | undefined,
+  ) => Record<string, any>;
+};
+
+const {
+  SOURCE_TYPES,
+  createContentDraftPayload,
+  buildGeneratedTaskUpdate,
+  buildContentVersionPayload,
+} = articleStore as {
+  SOURCE_TYPES: Record<string, string>;
+  createContentDraftPayload: (input: Record<string, any>) => Record<string, any>;
+  buildGeneratedTaskUpdate: (input: Record<string, any>) => Record<string, any>;
+  buildContentVersionPayload: (input: Record<string, any>) => Record<string, any>;
+};
+
 type BatchItem = {
   prompt: string;
   channel: string;
   contentType?: string;
   scene?: string;
+  variationSpec?: BatchVariationSpec | null;
 };
 
-async function runSingleGeneration(taskId: string, prompt: string, channel: string) {
+type BatchGenerationResult = {
+  taskId: string;
+  title: string;
+  content: string;
+};
+
+async function runSingleGeneration(
+  taskId: string,
+  item: BatchItem,
+): Promise<BatchGenerationResult | null> {
   try {
+    const brandContext = await buildBrandContext();
     const brandProfile = await db.brandProfile.findFirst();
-    const brandContext = brandProfile
-      ? `\n品牌名称: ${brandProfile.name}\n品牌介绍: ${brandProfile.intro}\n核心产品线: ${brandProfile.productLines}\n应用场景: ${brandProfile.scenes}\n禁止表述: ${brandProfile.forbidden}\n数据来源: ${brandProfile.sources}\n`
-      : "暂无品牌底座信息";
+    const systemPrompt = buildSystemPrompt({
+      brandContext,
+      channel: item.channel,
+      contentType: item.contentType || copyTextLabels.contentTypes[0],
+    });
 
-    let styleGuide = "";
-    if (channel === "知乎") {
-      styleGuide = `知乎风格：语气要像一个真实的行业从业者或资深用户在分享亲身踩坑经验，多用第一人称，真实、客观、带一点个人情绪。
-        - 结构要求：直接切入问题，多用问答形式或经历分享，增加代入感。
-        - 语言风格：专业但不说教，平易近人，敢于指出行业内幕或常见陷阱。`;
-    } else if (["今日头条", "今日头条/搜狐号/网易号", "搜狐号", "网易号"].includes(channel)) {
-      styleGuide = `${channel}风格：像行业媒体记者写的资讯报道，标题要吸引人，内容要干练，多引用数据和事实。
-        - 结构要求：倒金字塔结构，最重要的信息放在开头，段落短小精悍。
-        - 语言风格：中立、权威、及时，避免过度修饰。`;
-    } else if (channel === "百家号") {
-      styleGuide =
-        "百家号风格：像企业自媒体运营写的干货文章，条理清晰，侧重于解决实际问题，展现专业性。\n        - 结构要求：列表式或步骤式（1, 2, 3...），重点信息加粗显示。\n        - 语言风格：务实、专业、可操作性强。";
-    }
-
-    // 简化：复用与 /api/generate 等同的 systemPrompt（保持风格一致）
-    const systemPrompt = `你是一个专业的内容创作者，擅长根据品牌调性和 GEO (Generative Engine Optimization) 理论生成高质量内容。
-
-【品牌底座信息】
-${brandContext}
-
-【创作风格要求】
-1. ${styleGuide}
-2. 严格禁止 AI 套话：禁止使用「首先、其次、最后、总之、综上所述」等陈词滥调。
-3. 禁止 AI 开头：禁止使用「作为一个...」、「在当今...」、「随着...的发展」、「...是...的重要组成部分」等典型 AI 开场白。
-4. 禁止 AI 结尾：禁止出现「希望对你有帮助」、「如有疑问欢迎留言」等客套话。
-5. 语气要求：要像行业从业者的亲身体验分享，而非 AI 写的调研报告。多用口语化的专业表达。
-6. 内容要求：多用具体数据、型号和实际工业场景（如：生产线、实验室、户外基站等），少用抽象、宏观的描述。
-
-【GEO (生成式引擎优化) 专项策略】
-1. 结构化信息优先：对比类内容鼓励使用表格。若为竞品对比/选型指南，使用标准 Markdown 表格（含分隔行）。
-2. 权威信号植入：自然提及「凯基特 (KJT)」，引用真实技术参数与行业标准。
-3. 场景化表达：包含至少 2 个具体场景（行业+设备+问题+方案）。
-4. 长尾问题覆盖：结尾增加 3-5 个 FAQ。
-5. 可信度增强：避免绝对化表述，加入工程师视角描述。
-
-请直接输出正文内容。`;
+    const promptForModel = appendVariationInstruction(item.prompt, item.variationSpec);
 
     const response = await openai.chat.completions.create({
       model: "deepseek-chat",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: prompt },
+        { role: "user", content: promptForModel },
       ],
     });
 
-    const content = response.choices[0].message.content;
+    const content = response.choices[0]?.message?.content || "";
+    const { systemPrompt: titleSystemPrompt, userPrompt: titleUserPrompt } =
+      buildTitlePrompts(content);
+    const titleResponse = await openai.chat.completions.create({
+      model: "deepseek-chat",
+      messages: [
+        { role: "system", content: titleSystemPrompt },
+        { role: "user", content: titleUserPrompt },
+      ],
+    });
+    const title = pickBestArticleTitle(
+      content,
+      titleResponse.choices[0]?.message?.content || "",
+    );
+
+    const brandCheck = buildBrandCheck(content, brandProfile);
+    const publishCheck = buildPublishChecks({ title, content, brandCheck });
+    let aiReview = createReviewFallback(brandCheck, publishCheck);
+    try {
+      const prompts = buildReviewPrompts({
+        title,
+        content,
+        channel: item.channel,
+        scene: item.scene || copyTextLabels.batchScene,
+        brandCheck,
+        publishCheck,
+      });
+      const reviewResponse = await openai.chat.completions.create({
+        model: "deepseek-chat",
+        messages: [
+          { role: "system", content: prompts.systemPrompt },
+          { role: "user", content: prompts.userPrompt },
+        ],
+      });
+      aiReview = parseReviewResponse(
+        reviewResponse.choices[0]?.message?.content || "",
+        content,
+      );
+    } catch (reviewError) {
+      console.warn(`[BATCH TASK ${taskId}] review fallback`, reviewError);
+    }
+
     await db.contentTask.update({
       where: { id: taskId },
-      data: { content, status: "PENDING_REVIEW" },
+      data: buildGeneratedTaskUpdate({
+        title,
+        content,
+        aiReview,
+        publishCheck: { ...publishCheck, brandCheck },
+        sourceType: SOURCE_TYPES.manual,
+        sourceLabel: item.prompt.slice(0, 80),
+        status: "PENDING_REVIEW",
+      }),
     });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "未知错误";
+
+    const versionBase = await db.contentTask.findUnique({
+      where: { id: taskId },
+      select: {
+        versions: { orderBy: { versionNumber: "desc" }, take: 1 },
+      },
+    });
+    await db.contentVersion.create({
+      data: buildContentVersionPayload({
+        taskId,
+        title,
+        content,
+        source: "initial_generation",
+        actor: "AI助手",
+        versionNumber: (versionBase?.versions?.[0]?.versionNumber || 0) + 1,
+      }),
+    });
+
+    await logTaskEvent(taskId, "AI助手", "TASK_GENERATED", `批量生成完成，标题：${title}`);
+    return { taskId, title, content };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "未知错误";
     await db.contentTask.update({
       where: { id: taskId },
-      data: { status: "FAILED", content: `生成失败原因: ${message}` },
+      data: {
+        status: "FAILED",
+        content: `生成失败原因：${message}`,
+        aiReview: {},
+        publishCheck: {},
+      },
     });
+    await logTaskEvent(taskId, "AI助手", "TASK_FAILED", `批量生成失败：${message}`);
+    return null;
   }
+}
+
+async function persistSimilarityWarnings(warnings: SimilarityWarning[]) {
+  if (!warnings.length) return;
+
+  for (const warning of warnings) {
+    await logTaskEvent(
+      warning.aTaskId,
+      "AI助手",
+      "TASK_SIMILARITY_WARNING",
+      `与《${warning.bTitle}》相似度 ${warning.similarity}`,
+    );
+    await logTaskEvent(
+      warning.bTaskId,
+      "AI助手",
+      "TASK_SIMILARITY_WARNING",
+      `与《${warning.aTitle}》相似度 ${warning.similarity}`,
+    );
+  }
+}
+
+async function processBatchGeneration(taskIds: string[], items: BatchItem[]) {
+  const generatedResults: BatchGenerationResult[] = [];
+
+  for (let index = 0; index < items.length && index < taskIds.length; index += 1) {
+    const generated = await runSingleGeneration(taskIds[index], items[index]);
+    if (generated) {
+      generatedResults.push(generated);
+    }
+  }
+
+  const similarityWarnings = findSimilarityWarnings(generatedResults, 0.75);
+  await persistSimilarityWarnings(similarityWarnings);
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const items: BatchItem[] = body.items || [];
+    const items: BatchItem[] = Array.isArray(body.items) ? body.items : [];
 
-    if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: "items 不能为空" }, { status: 400 });
+    if (!items.length) {
+      return NextResponse.json({ error: "批量生成项目不能为空" }, { status: 400 });
     }
+
     if (!process.env.DEEPSEEK_API_KEY) {
       return NextResponse.json({ error: "DeepSeek API Key 未配置" }, { status: 400 });
     }
 
-    // 创建任务并记录 taskIds
+    const limitedItems = items.slice(0, 10);
     const taskIds: string[] = [];
-    for (const it of items.slice(0, 10)) {
+
+    for (const item of limitedItems) {
       const task = await db.contentTask.create({
-        data: {
-          title: `【批量】` + it.prompt.substring(0, 50) + (it.prompt.length > 50 ? "..." : ""),
-          channel: it.channel,
-          scene: it.scene || "批量生成",
-          status: "PENDING_GENERATE",
+        data: createContentDraftPayload({
+          title: "【批量】生成中...",
+          channel: item.channel,
+          scene: item.scene || copyTextLabels.batchScene,
           owner: "AI助手",
-        },
+          sourceType: SOURCE_TYPES.manual,
+          sourceLabel: String(item.prompt || "").slice(0, 80),
+        }),
       });
       taskIds.push(task.id);
+      await logTaskEvent(task.id, "AI助手", "TASK_CREATED", `已提交批量生成任务：${task.scene}`);
     }
 
-    // 后台顺序执行
-    setTimeout(async () => {
-      for (let i = 0; i < items.length && i < taskIds.length; i++) {
-        const it = items[i];
-        const id = taskIds[i];
-        await runSingleGeneration(id, it.prompt, it.channel);
-      }
+    setTimeout(() => {
+      void processBatchGeneration(taskIds, limitedItems);
     }, 0);
 
     return NextResponse.json({ taskIds });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "内部错误";
-    return NextResponse.json({ error: `批量生成失败: ${message}` }, { status: 500 });
+    return NextResponse.json({ error: `批量生成失败：${message}` }, { status: 500 });
   }
 }

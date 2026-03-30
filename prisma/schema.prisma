@@ -23,14 +23,49 @@ model User {
 }
 
 model BrandProfile {
-  id           String   @id @default(cuid())
+  id           String            @id @default(cuid())
   name         String
-  intro        String?  @db.Text
-  productLines String?  @db.Text
-  scenes       String?  @db.Text
-  forbidden    String?  @db.Text
-  sources      String?  @db.Text
-  updatedAt    DateTime @updatedAt
+  intro        String?           @db.Text
+  productLines String?           @db.Text
+  scenes       String?           @db.Text
+  forbidden    String?           @db.Text
+  sources      String?           @db.Text
+  updatedAt    DateTime          @updatedAt
+  fieldMeta    BrandFieldMeta[]
+  changeLogs   BrandChangeLog[]
+}
+
+model BrandFieldMeta {
+  id             String       @id @default(cuid())
+  brandProfileId String
+  brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  fieldKey       String
+  updatedAt      DateTime     @default(now())
+  updatedBy      String?
+  sourceType     String       @default("manual")
+  sourceLabel    String?
+
+  @@unique([brandProfileId, fieldKey])
+  @@index([brandProfileId])
+  @@index([fieldKey])
+  @@index([updatedAt])
+}
+
+model BrandChangeLog {
+  id             String       @id @default(cuid())
+  brandProfileId String
+  brandProfile   BrandProfile @relation(fields: [brandProfileId], references: [id], onDelete: Cascade)
+  fieldKey       String
+  oldValue       String?      @db.Text
+  newValue       String?      @db.Text
+  changeType     String       @default("manual_update")
+  changedBy      String?
+  sourceLabel    String?
+  createdAt      DateTime     @default(now())
+
+  @@index([brandProfileId])
+  @@index([fieldKey])
+  @@index([createdAt])
 }
 
 model TopicTemplate {
@@ -38,22 +73,134 @@ model TopicTemplate {
   topic    String
   scene    String
   channel  String
-  priority String  @default("中")
+  priority String  @default("normal")
   active   Boolean @default(true)
 }
 
+model KeywordAsset {
+  id                     String            @id @default(cuid())
+  keyword                String
+  scene                  String            @default("general")
+  groupName              String            @default("default")
+  sourceType             String            @default("manual")
+  sourceLabel            String?
+  priority               String            @default("MEDIUM")
+  status                 String            @default("READY")
+  usageCount             Int               @default(0)
+  lastUsedAt             DateTime?
+  lastContentGeneratedAt DateTime?
+  avgGeoScore            Float?
+  active                 Boolean           @default(true)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  topicSuggestions       TopicSuggestion[]
+
+  @@index([keyword])
+  @@index([scene])
+  @@index([groupName])
+  @@index([priority])
+  @@index([status])
+  @@index([active])
+  @@index([lastContentGeneratedAt])
+}
+
+model TopicSuggestion {
+  id              String       @id @default(cuid())
+  keywordAssetId  String
+  keywordAsset    KeywordAsset @relation(fields: [keywordAssetId], references: [id], onDelete: Cascade)
+  keyword         String
+  title           String
+  scene           String?
+  channel         String?
+  reason          String?      @db.Text
+  score           Float?
+  status          String       @default("ACTIVE")
+  dismissedUntil  DateTime?
+  lastGeneratedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([keywordAssetId])
+  @@index([scene])
+  @@index([channel])
+  @@index([status])
+  @@index([dismissedUntil])
+  @@index([lastGeneratedAt])
+}
+
 model ContentTask {
-  id          String    @id @default(cuid())
-  title       String
-  channel     String
-  scene       String
-  owner       String    @default("待分配")
-  status      String    @default("PENDING_GENERATE")
-  content     String?   @db.Text
-  publishedAt DateTime?
-  retestAt    DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           String         @id @default(cuid())
+  title        String
+  channel      String
+  scene        String
+  owner        String         @default("AI Assistant")
+  status       String         @default("PENDING_GENERATE")
+  content      String?        @db.Text
+  sourceType   String         @default("manual")
+  sourceLabel  String?
+  aiReview     Json?
+  publishCheck Json?
+  reviewNote   String?        @db.Text
+  reviewedAt   DateTime?
+  reviewedBy   String?
+  publishedAt  DateTime?
+  retestAt     DateTime?
+  lastEditedAt DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  taskEvents   TaskEvent[]
+  versions     ContentVersion[]
+  sampleEntry  ContentSample?
+  visibilityQueries VisibilityQueryResult[]
+}
+
+model ContentSample {
+  id        String      @id @default(cuid())
+  taskId    String      @unique
+  task      ContentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title     String
+  channel   String
+  scene     String
+  reason    String?     @db.Text
+  createdBy String      @default("AI Assistant")
+  active    Boolean     @default(true)
+  exemplar  Boolean     @default(false)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([channel])
+  @@index([scene])
+  @@index([active])
+  @@index([exemplar])
+}
+
+model ContentVersion {
+  id              String      @id @default(cuid())
+  taskId          String
+  task            ContentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  versionNumber   Int
+  snapshotTitle   String
+  snapshotContent String      @db.Text
+  source          String      @default("manual_save")
+  actor           String      @default("AI Assistant")
+  createdAt       DateTime    @default(now())
+
+  @@index([taskId])
+  @@index([createdAt])
+  @@unique([taskId, versionNumber])
+}
+
+model TaskEvent {
+  id        String      @id @default(cuid())
+  taskId    String
+  task      ContentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  action    String
+  actor     String
+  note      String?     @db.Text
+  createdAt DateTime    @default(now())
+
+  @@index([taskId])
+  @@index([createdAt])
 }
 
 model MonitorQuestion {
@@ -77,6 +224,29 @@ model MonitorResult {
   factErrorNote  String?         @db.Text
   runAt          DateTime        @default(now())
 }
+
+model VisibilityQueryResult {
+  id            String      @id @default(cuid())
+  taskId        String
+  task          ContentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  keyword       String
+  platform      String
+  prompt        String?     @db.Text
+  responseText  String?     @db.Text
+  mentioned     Boolean     @default(false)
+  mentionCount  Int         @default(0)
+  isFirstScreen Boolean     @default(false)
+  sentiment     String      @default("neutral")
+  cached        Boolean     @default(false)
+  queriedAt     DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([taskId])
+  @@index([platform])
+  @@index([keyword, platform, queriedAt])
+}
+
 model ActivityLog {
   id        String   @id @default(cuid())
   userEmail String
@@ -86,5 +256,71 @@ model ActivityLog {
   createdAt DateTime @default(now())
 
   @@index([userEmail])
+  @@index([createdAt])
+}
+
+model OperationLog {
+  id        String   @id @default(cuid())
+  userEmail String
+  action    String
+  detail    String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userEmail])
+  @@index([createdAt])
+}
+
+model ModelConfig {
+  id                   String                     @id @default(cuid())
+  name                 String
+  provider             String
+  baseURL              String
+  apiKey               String                     @db.Text
+  modelName            String
+  isDefault            Boolean                    @default(false)
+  isActive             Boolean                    @default(true)
+  complianceScore      Float?
+  complianceTestedAt   DateTime?
+  complianceStatus     String?
+  createdAt            DateTime                   @default(now())
+
+  usages               ModelUsage[]
+  complianceBenchmarks ModelComplianceBenchmark[]
+
+  @@index([provider])
+  @@index([isDefault])
+  @@index([complianceScore])
+  @@index([complianceTestedAt])
+  @@index([createdAt])
+}
+
+model ModelUsage {
+  id            String      @id @default(cuid())
+  modelConfigId String
+  modelConfig   ModelConfig @relation(fields: [modelConfigId], references: [id], onDelete: Cascade)
+  durationMs    Int
+  success       Boolean
+  createdAt     DateTime    @default(now())
+
+  @@index([modelConfigId])
+  @@index([createdAt])
+}
+
+model ModelComplianceBenchmark {
+  id           String      @id @default(cuid())
+  modelId       String
+  model         ModelConfig @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  promptKey     String
+  promptText    String      @db.Text
+  responseText  String?     @db.Text
+  forbiddenHit  Boolean     @default(false)
+  brandAccurate Boolean     @default(false)
+  score         Float       @default(0)
+  runBatchId    String
+  createdAt     DateTime    @default(now())
+
+  @@index([modelId])
+  @@index([promptKey])
+  @@index([runBatchId])
   @@index([createdAt])
 }

@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.next-dev-3301.log
+.next-dev-3301.err.log
+.service-3301.pid
+.service-3301.log
+.service-3301.err.log
+build-errors.txt

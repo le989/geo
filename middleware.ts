@@ -13,6 +13,7 @@ export function middleware(request: NextRequest) {
   const protectedPaths = [
     '/workbench',
     '/api/generate',
+    '/api/models',
   ];
   const needsProtect = protectedPaths.some((p) => pathname.startsWith(p));
 
@@ -40,9 +41,19 @@ export function middleware(request: NextRequest) {
 
     // admin 页面只有管理员可进
     if (pathname.startsWith('/workbench/admin') && !isAdmin) {
-      const loginUrl = new URL('/workbench/login', request.url);
-      loginUrl.searchParams.set('error', 'forbidden');
-      return NextResponse.redirect(loginUrl);
+      const forbiddenUrl = new URL('/workbench/forbidden', request.url);
+      return NextResponse.redirect(forbiddenUrl);
+    }
+
+    // 模型管理只有管理员可进
+    if (pathname.startsWith('/workbench/models') && isViewer) {
+      const forbiddenUrl = new URL('/workbench/forbidden', request.url);
+      return NextResponse.redirect(forbiddenUrl);
+    }
+
+    // 模型 API 只有管理员可访问（公开列表除外）
+    if (pathname.startsWith('/api/models') && pathname !== '/api/models/public' && pathname !== '/api/models/key' && isViewer) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
   }
 
@@ -51,5 +62,5 @@ export function middleware(request: NextRequest) {
 
 // 配置中间件匹配的路径
 export const config = {
-  matcher: ['/workbench/:path*', '/api/generate/:path*'],
+  matcher: ['/workbench/:path*', '/api/generate/:path*', '/api/models/:path*'],
 };

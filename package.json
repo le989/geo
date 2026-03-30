@@ -3,10 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3300",
+    "dev": "next dev -p 3301",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start -p 3301",
+    "lint": "next lint",
+    "health:check": "node scripts/health-check.js",
+    "service:start": "node scripts/service-start.js",
+    "service:stop": "node scripts/service-stop.js",
+    "service:restart": "node scripts/service-restart.js",
+    "service:status": "node scripts/service-status.js",
+    "prisma:generate": "prisma generate",
+    "prisma:db:push": "prisma db push",
+    "prisma:seed": "node --experimental-strip-types prisma/seed-brand.ts && node --experimental-strip-types prisma/seed-topics-v2.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",

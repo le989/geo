@@ -1,5 +1,9 @@
-import { redirect } from "next/navigation";
+export const dynamic = "force-dynamic";
+
+import WorkbenchHomeClient from "@/components/home/workbench-home-client";
 
 export default function WorkbenchPage() {
-  redirect("/workbench/factory");
+  return <WorkbenchHomeClient />;
 }
+
+
